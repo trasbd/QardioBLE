@@ -20,14 +20,15 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import java.util.*
 
+@Suppress("DEPRECATION")
 class MainActivity : ComponentActivity() {
-    private var bluetoothGatt: BluetoothGatt? = null
+    // private var bluetoothGatt: BluetoothGatt? = null
 
-    // ✅ Characteristic UUIDs for QardioARM
-    private val SERVICE_BP = UUID.fromString("00001810-0000-1000-8000-00805f9b34fb") // Blood Pressure Service
-    private val CTRL = UUID.fromString("583cb5b3-875d-40ed-9098-c39eb0c1983d")       // Control characteristic
-    private val MEAS = UUID.fromString("00002a35-0000-1000-8000-00805f9b34fb")       // Measurement
-    private val BAT  = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb")       // Battery (optional)
+    // Characteristic UUIDs for QardioARM
+    private val _serviceBP = UUID.fromString("00001810-0000-1000-8000-00805f9b34fb") // Blood Pressure Service
+    private val _ctrl = UUID.fromString("583cb5b3-875d-40ed-9098-c39eb0c1983d")       // Control characteristic
+    private val _meas = UUID.fromString("00002a35-0000-1000-8000-00805f9b34fb")       // Measurement
+    private val _bat  = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb")       // Battery (optional)
 
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
@@ -100,7 +101,7 @@ class MainActivity : ComponentActivity() {
                         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
                         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                             // 🔎 Find measurement characteristic
-                            val measChar = gatt.getService(SERVICE_BP)?.getCharacteristic(MEAS)
+                            val measChar = gatt.getService(_serviceBP)?.getCharacteristic(_meas)
                             if (measChar != null) {
                                 // Enable local notifications
                                 gatt.setCharacteristicNotification(measChar, true)
@@ -118,9 +119,9 @@ class MainActivity : ComponentActivity() {
                                 onUpdate("⚠️ Measurement characteristic not found")
                             }
 
-                            // 🧠 Small delay before control write, to avoid collision with CCCD write
+                            // Small delay before control write, to avoid collision with CCCD write
                             android.os.Handler(mainLooper).postDelayed({
-                                val ctrlChar = gatt.services.flatMap { it.characteristics }.find { it.uuid == CTRL }
+                                val ctrlChar = gatt.services.flatMap { it.characteristics }.find { it.uuid == _ctrl }
                                 if (ctrlChar != null) {
                                     val ok = gatt.writeCharacteristic(
                                         ctrlChar,
@@ -136,11 +137,12 @@ class MainActivity : ComponentActivity() {
 
 
                         // ✅ Receive blood pressure readings
+                        @Deprecated("Deprecated in Java")
                         override fun onCharacteristicChanged(
                             gatt: BluetoothGatt,
                             characteristic: BluetoothGattCharacteristic
                         ) {
-                            if (characteristic.uuid == MEAS) {
+                            if (characteristic.uuid == _meas) {
                                 val data = characteristic.value
                                 // These bytes follow the Bluetooth BP profile (simplified)
                                 val systolic = data.getOrNull(1)?.toUByte()?.toInt() ?: 0

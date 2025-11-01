@@ -7,8 +7,10 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE"/>
-    <uses-permission android:name="android.permission.health.WRITE_BLOOD_PRESSURE"/>
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE"
+        tools:ignore="HealthConnectPolicy" />
+    <uses-permission android:name="android.permission.health.WRITE_BLOOD_PRESSURE"
+        tools:ignore="HealthConnectPolicy" />
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -52,25 +54,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- Required to support pre-Android 14 devices with APK Health Connect -->
-        <activity
-            android:name=".OnboardingActivity"
-            android:exported="true"
-            android:permission="com.google.android.apps.healthdata.permission.START_ONBOARDING">
-            <intent-filter>
-                <action android:name="androidx.health.ACTION_SHOW_ONBOARDING"/>
-            </intent-filter>
-        </activity>
-        <!-- Required to support Android 14+ devices with platform Health Connect -->
-        <activity-alias
-            android:name="UAndAboveOnboardingActivity"
-            android:exported="true"
-            android:targetActivity=".OnboardingActivity"
-            android:permission="android.permission.health.START_ONBOARDING">
-            <intent-filter>
-                <action android:name="android.health.connect.action.SHOW_ONBOARDING" />
-            </intent-filter>
-        </activity-alias>
     </application>
 
     <!-- Check if Health Connect is installed -->

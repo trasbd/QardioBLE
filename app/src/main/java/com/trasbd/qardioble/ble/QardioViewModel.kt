@@ -9,34 +9,33 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import androidx.annotation.RequiresApi
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import java.util.*
-import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.permission.HealthPermission
-import androidx.health.connect.client.records.BloodPressureRecord
-import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.metadata.Device
-import androidx.health.connect.client.records.metadata.Metadata
-import androidx.health.connect.client.units.Pressure
-import java.time.Instant
-import java.time.ZoneOffset
+import com.trasbd.qardioble.health.HealthConnectHelper
+import com.trasbd.qardioble.BuildConfig
+
 
 @Suppress("DEPRECATION")
 class QardioViewModel(app: Application) : AndroidViewModel(app) {
 
-    var connectionStatus = androidx.compose.runtime.mutableStateOf("Idle")
+    var connectionStatus = mutableStateOf("Waiting to connect...")
         private set
-    var measurement = androidx.compose.runtime.mutableStateOf("BP: N/A")
+    var measurement = mutableStateOf("")
+        private set
+    var healthConnectStatus = mutableStateOf("")
+        private set
+    var hasHealthPermissions = mutableStateOf(false)
         private set
 
-    var hasHealthConnectPermissions = androidx.compose.runtime.mutableStateOf(false)
-        private set
 
     private val context get() = getApplication<Application>()
     private val mainHandler = Handler(context.mainLooper)
+    private val _hcHelper = HealthConnectHelper(context)
 
     private val _deviceInfoService = UUID.fromString("0000180A-0000-1000-8000-00805F9B34FB")
     private val _manufacturerChar = UUID.fromString("00002A29-0000-1000-8000-00805F9B34FB")
@@ -47,32 +46,6 @@ class QardioViewModel(app: Application) : AndroidViewModel(app) {
     private val _ctrl = UUID.fromString("583cb5b3-875d-40ed-9098-c39eb0c1983d")
     private val _meas = UUID.fromString("00002a35-0000-1000-8000-00805f9b34fb")
 
-
-    private val healthClient = HealthConnectClient.getOrCreate(context)
-    private val healthPermissions = setOf(
-        HealthPermission.getWritePermission<BloodPressureRecord>(),
-        HealthPermission.getWritePermission<HeartRateRecord>()
-    )
-
-    /**
-     * Checks whether Health Connect permissions are currently granted.
-     * @return true if all required permissions are granted, false otherwise.
-     */
-    suspend fun checkHealthConnectPermissions(): Boolean {
-        return try {
-            val granted = healthClient.permissionController.getGrantedPermissions()
-            val allGranted = granted.containsAll(healthPermissions)
-            hasHealthConnectPermissions.value = allGranted
-            if (allGranted)
-                connectionStatus.value = "✅ Health Connect ready"
-            else
-                connectionStatus.value = "⚠️ Health Connect permissions missing"
-            allGranted
-        } catch (e: Exception) {
-            connectionStatus.value = "⚠️ Could not check Health Connect: ${e.message}"
-            false
-        }
-    }
 
     @RequiresApi(Build.VERSION_CODES.S)
     @SuppressLint("MissingPermission")
@@ -91,7 +64,7 @@ class QardioViewModel(app: Application) : AndroidViewModel(app) {
             @SuppressLint("MissingPermission")
             override fun onScanResult(type: Int, result: ScanResult) {
                 val device = result.device ?: return
-                if (device.name?.contains("Qardio") == true) {
+                if (device.name?.contains("QardioARM") == true) {
                     connectionStatus.value = "🔗 Found ${device.name}, connecting..."
                     scanner.stopScan(this)
 
@@ -139,9 +112,9 @@ class QardioViewModel(app: Application) : AndroidViewModel(app) {
                         }
 
 
-
-                        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+                        @Suppress("OVERRIDE_DEPRECATION")
                         @Deprecated("Deprecated in Java")
+                        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
                         override fun onCharacteristicRead(
                             gatt: BluetoothGatt,
                             characteristic: BluetoothGattCharacteristic,
@@ -165,6 +138,7 @@ class QardioViewModel(app: Application) : AndroidViewModel(app) {
                             }
                         }
 
+                        @Suppress("OVERRIDE_DEPRECATION")
                         @Deprecated("Deprecated in Java")
                         override fun onCharacteristicChanged(
                             gatt: BluetoothGatt,
@@ -185,16 +159,37 @@ class QardioViewModel(app: Application) : AndroidViewModel(app) {
                                     measurement.value = ""
                                 } else {
                                     measurement.value =
-                                        "BP: $systolic/$diastolic  Pulse: $pulse bpm\nRaw: ${
+                                        "BP: $systolic/$diastolic  Pulse: $pulse bpm"
+
+                                    if (BuildConfig.DEBUG) {
+                                        measurement.value += "\nRaw: ${
                                             data.joinToString(" ") { it.toUByte().toString() }
                                         }"
+                                    }
 
                                     if (isIntermediate) {
                                         connectionStatus.value = "🩺 Measuring..."
                                     } else {
                                         connectionStatus.value = "✅ Final measurement complete"
-                                        postBPResults(systolic, diastolic, pulse, Device(Device.TYPE_UNKNOWN, manufacturer, model))
 
+
+                                        viewModelScope.launch {
+                                            if(_hcHelper.hasAllPermissions())
+                                            {
+                                            try {
+                                               _hcHelper.postBPResults(
+                                                    systolic,
+                                                    diastolic,
+                                                    pulse,
+                                                    Device(Device.TYPE_UNKNOWN, manufacturer, model)
+                                                )
+                                                healthConnectStatus.value = "Posted to Health Connect"
+                                            }
+                                            catch (e: Exception) {
+                                                // Handle or log it
+                                                healthConnectStatus.value = "⚠️ Failed to post to Health Connect: ${e.message}"
+                                            }
+                                        }}
                                     }
                                 }
 
@@ -208,44 +203,5 @@ class QardioViewModel(app: Application) : AndroidViewModel(app) {
         })
     }
 
-    fun postBPResults(systolic: Int, diastolic: Int, pulse: Int, device: Device) {
-        viewModelScope.launch {
-            try {
 
-
-                val client = HealthConnectClient.getOrCreate(getApplication())
-
-                val now = Instant.now()
-                val zone = ZoneOffset.systemDefault()
-
-                val bpRecord = BloodPressureRecord(
-                    time = now,
-                    zoneOffset = zone.rules.getOffset(now),
-                    systolic = Pressure.millimetersOfMercury(systolic.toDouble()),
-                    diastolic = Pressure.millimetersOfMercury(diastolic.toDouble()),
-                    metadata = Metadata.autoRecorded(device)
-                )
-
-                val hrRecord = HeartRateRecord(
-                    metadata = Metadata.autoRecorded(device),
-                    startTime = now,
-                    startZoneOffset = zone.rules.getOffset(now),
-                    endTime = now,
-                    endZoneOffset = zone.rules.getOffset(now),
-                    samples = listOf(
-                        HeartRateRecord.Sample(
-                            time = now,
-                            beatsPerMinute = pulse.toLong()
-                        )
-                    )
-                )
-
-                client.insertRecords(listOf(bpRecord, hrRecord))
-                connectionStatus.value = "✅ Shared with Health Connect"
-
-            } catch (e: Exception) {
-                connectionStatus.value = "⚠️ Health Connect post failed: ${e.message}"
-            }
-        }
-    }
 }

@@ -33,9 +33,13 @@ fun QardioView(
 
             Spacer(Modifier.height(24.dp))
 
-            Button(onClick = onHCPermissionsClicked) {
-                Text("Enable Health Connect")
+            if (!vm.hasHealthPermissions.value) {
+                Button(onClick = onHCPermissionsClicked) {
+                    Text("Enable Health Connect")
+                }
             }
+            Text(vm.healthConnectStatus.value)
+
         }
     }
 }

@@ -59,12 +59,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val hasPerms = hcHelper.hasAllPermissions()
             vm.hasHealthPermissions.value = hasPerms
-            //vm.connectionStatus.value =
-            //    if (hasPerms) "✅ Health Connect ready"
-             //   else "⚠️ Health Connect permissions missing"
+            vm.healthConnectStatus.value =
+                if (hasPerms) "✅ Health Connect ready"
+                else "⚠️ Health Connect permissions missing"
         }
-
-
 
         // --- Compose UI ---
         setContent {

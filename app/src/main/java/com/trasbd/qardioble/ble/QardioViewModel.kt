@@ -74,7 +74,9 @@ class QardioViewModel(app: Application) : AndroidViewModel(app) {
 
                         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                                connectionStatus.value = "✅ Connected, discovering services..."
+                                connectionStatus.value = "✅ Connected, "
+                                connectionStatus.value += if (BuildConfig.DEBUG) "discovering services..." else "starting..."
+
                                 gatt.discoverServices()
                             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                                 connectionStatus.value = "❌ Disconnected"

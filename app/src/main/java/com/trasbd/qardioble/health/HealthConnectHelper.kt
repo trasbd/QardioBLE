@@ -66,7 +66,9 @@ class HealthConnectHelper(private val app: Application) {
                 println("⚠️ Redirecting to Play Store to install/update Health Connect")
                 return false
             }
-            else -> return true
+            else -> {
+                return true
+            }
         }
     }
     @Suppress("SameReturnValue")

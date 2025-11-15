@@ -16,3 +16,5 @@ local.properties
 __pycache__
 secrets.py
 .venv
+rwfit
+SmartHealth
